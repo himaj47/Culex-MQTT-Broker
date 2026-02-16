@@ -218,8 +218,6 @@ unsigned long long mqtt::decode_length(unsigned char* buff) {
     int multiplier = 1;
     unsigned long long value = 0;
 
-    unsigned char encodedbyte;
-
     do {
         encodedbyte = *buff;
         value += (encodedbyte & 127) * multiplier;
