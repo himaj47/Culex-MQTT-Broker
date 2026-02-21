@@ -1,0 +1,109 @@
+#include "topictree.h"
+
+namespace culex {
+
+TopicTree::TopicTree() {
+    m_root = std::make_unique<Node>("*");
+}
+
+TopicTree::~TopicTree() {
+
+}
+
+void TopicTree::getWords(std::string str, std::vector<std::string>& words) {
+    std::string temp = "";
+    int length = str.length();
+
+    for (int i = 0; i < length; i++) {
+        if (i == 0) {
+            words.push_back("/");
+        }
+        else if (str[i] == '/') {
+            words.push_back(temp);
+            temp = "";
+        }
+        else if (i == length-1) {
+            temp += str[i];
+            words.push_back(temp);
+            temp = "";
+        }
+        else {
+            temp += str[i];
+        }
+    }
+}
+
+void TopicTree::handleWildCard(Node* root, std::vector<std::string>& sub_topics, std::vector<Node*>& vec) {
+    bool pushed = false;
+    if (sub_topics.empty()) {
+        vec.push_back(root);
+    }
+
+    for (auto sub_topic : sub_topics) {
+        Node* nextLink = root->getLink(sub_topic);
+        std::vector<std::string> link_topics = nextLink->getLinkTopics();
+
+        if (!pushed) {
+            vec.push_back(root);
+            pushed = true;
+        }
+        handleWildCard(nextLink, link_topics, vec);
+    }
+}
+
+void TopicTree::getNode(std::vector<Node*>& vec, Node* root, std::vector<std::string>& sub_topics, int idx) {
+    for (int i = idx; i < sub_topics.size(); i++) {
+        if (sub_topics[i] == "+" || sub_topics[i] == "#") {
+            std::vector<std::string> link_topics = root->getLinkTopics();
+
+            if (!link_topics.empty()) {
+                if (sub_topics[i] == "+") {
+                    for (auto topic : link_topics) {
+                        getNode(vec, root->getLink(topic), sub_topics, i+1);
+                    }
+                }
+                else {
+                    std::cout << "entered\n";
+                    handleWildCard(root, link_topics, vec);
+                }
+            }
+
+            return;
+        }
+        else if (!root->ispresent(sub_topics[i])) {
+            root->addLink(sub_topics[i]);
+        }
+        root = root->getLink(sub_topics[i]);
+    }
+    vec.push_back(root);
+}
+
+bool TopicTree::searchTopic(std::string str) {
+    return true;
+}   
+
+void TopicTree::publish(std::string topic, std::string msg) {
+    std::vector<std::string> words;
+    getWords(topic, words);
+
+    std::vector<Node*> nodes;
+    getNode(nodes, m_root.get(), words);
+    
+    for (auto node : nodes) {
+        node->publish(msg);
+    }
+}
+
+void TopicTree::subscribe(std::string topic, PacketHandler* client) {
+    std::vector<std::string> words;
+    getWords(topic, words);
+
+    std::vector<Node*> nodes;
+    getNode(nodes, m_root.get(), words);
+
+    for (auto node : nodes) {
+        node->subscribe(client);
+    }
+}
+
+}
