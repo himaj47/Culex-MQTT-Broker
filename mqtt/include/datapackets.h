@@ -109,6 +109,7 @@ typedef struct subscribe {
 typedef struct unsubscribe {
     header fixed_header;
     uint16_t packet_id;
+    uint16_t tuples_len;
 
     struct tuple {
         uint16_t topic_length;
@@ -213,6 +214,8 @@ static size_t decode_length(const uint8_t** buff) {
 }
 
 static size_t unpack_connect(mqtt::header* header, mqtt::packet* pkt, const uint8_t** buff) {
+    std::memset(&pkt->connect_, 0, sizeof(pkt->connect_));
+
     pkt->connect_.fixed_header = *header;
     size_t remaining_len = decode_length(buff);
 
@@ -240,6 +243,8 @@ static size_t unpack_connect(mqtt::header* header, mqtt::packet* pkt, const uint
 }
 
 static size_t unpack_publish(mqtt::header* header, mqtt::packet* pkt, const uint8_t** buff) {
+    std::memset(&pkt->publish_, 0, sizeof(pkt->publish_));
+
     pkt->publish_.fixed_header = *header;
     size_t remaining_len = decode_length(buff);
     size_t payload_len = remaining_len;
@@ -261,6 +266,8 @@ static size_t unpack_publish(mqtt::header* header, mqtt::packet* pkt, const uint
 
 static size_t unpack_subscribe(mqtt::header* header, mqtt::packet* pkt, const uint8_t** buff) {
     mqtt::subscribe subscribe;
+    std::memset(&subscribe, 0, sizeof(subscribe));
+
     subscribe.fixed_header = *header;
     size_t remaining_len = decode_length(buff);
 
@@ -289,14 +296,38 @@ static size_t unpack_subscribe(mqtt::header* header, mqtt::packet* pkt, const ui
 }
 
 static size_t unpack_unsubscribe(mqtt::header* header, mqtt::packet* pkt, const uint8_t** buff) {
-    pkt->publish_.fixed_header = *header;
+    mqtt::unsubscribe unsubscribe;
+    std::memset(&unsubscribe, 0, sizeof(unsubscribe));
+
+    unsubscribe.fixed_header = *header;
     size_t remaining_len = decode_length(buff);
+
+    unsubscribe.packet_id = unpack_u16(buff);
+
+    size_t payload_len = remaining_len - sizeof(uint16_t);
+    uint16_t total_tuples = 0;
+
+    while (payload_len > 0) {
+        payload_len -= sizeof(uint16_t);
+        unsubscribe.payload = (mqtt::unsubscribe::tuple*)realloc(unsubscribe.payload, (total_tuples+1)*sizeof(mqtt::unsubscribe::tuple));
+        if (unsubscribe.payload) {
+            // std::cout << "entered\n";
+            unsubscribe.payload[total_tuples].topic_length = unpack_string16(buff, &unsubscribe.payload[total_tuples].topic_name);
+
+            payload_len -= unsubscribe.payload[total_tuples].topic_length;
+        }
+        total_tuples++;
+    }
+    unsubscribe.tuples_len = total_tuples;
+    pkt->unsubscribe_ = unsubscribe;
 
     return remaining_len;
 
 }
 
 static size_t unpack_ack(mqtt::header* header, mqtt::packet* pkt, const uint8_t** buff) {
+    std::memset(&pkt->ack_, 0, sizeof(pkt->ack_));
+
     pkt->ack_.fixed_header = *header;
     size_t remaining_len = decode_length(buff);
 
@@ -454,11 +485,31 @@ int main(int argc, char const *argv[])
         0x01                        // Requested QoS 1
     };
 
+    uint8_t unsubscribe_packet[] = {
+        // --- FIXED HEADER ---
+        0xA2,                       // Type = 10 (UNSUBSCRIBE), Flags = 2 (Required by Spec)
+        0x0C,                       // Remaining Length (12 bytes follow)
+
+        // --- VARIABLE HEADER ---
+        0x00, 0x0F,                 // Packet Identifier (15)
+
+        // --- PAYLOAD (Topic List) ---
+        // Topic 1
+        0x00, 0x03,                 // Length (3)
+        'a', '/', 'b',              // Topic Name ("a/b")
+
+        // Topic 2
+        0x00, 0x03,                 // Length (3)
+        'c', '/', 'd'               // Topic Name ("c/d")
+    };
+
+
 
     // const uint8_t* buff = connect_packet;
     // const uint8_t* buff = connack_packet;
     // const uint8_t* buff = publish_packet;
     const uint8_t* buff = subscribe_packet;
+    // const uint8_t* buff = unsubscribe_packet;
 
     mqtt::packet pkt;
     size_t len = unpack(&pkt, &buff);
@@ -473,6 +524,8 @@ int main(int argc, char const *argv[])
     // std::cout << "payload = " << (char)pkt.publish_.payload[0] << std::endl;
 
     std::cout << "topic1 = " << (char)pkt.subscribe_.payload[0].topic_name[0] << std::endl;
+
+    // std::cout << "topic1 = " << (char)pkt.unsubscribe_.payload[1].topic_name[0] << std::endl;
 
     return 0;
 }
