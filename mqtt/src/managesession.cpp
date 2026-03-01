@@ -24,4 +24,32 @@ void ManageSessions::removeSession(int fd) {
     std::cout << "packet handler session erased!!\n";
 }
 
+std::shared_ptr<ClientSession> ManageSessions::sessionPresent(std::string client_id) {
+    std::shared_ptr<ClientSession> cs;
+    {
+        std::lock_guard<std::mutex> lock(m_registryMutex);
+        auto it = m_sessionRegistry.find(client_id);
+
+        if (it != m_sessionRegistry.end())
+            cs = it->second;
+        else
+            cs = nullptr;
+    }
+    return cs;
+}
+
+void ManageSessions::removeFromRegistry(std::string client_id) {
+    std::lock_guard<std::mutex> lock(m_registryMutex);
+    auto it = m_sessionRegistry.find(client_id);
+
+    if (it != m_sessionRegistry.end()) {
+        m_sessionRegistry.erase(client_id);
+    }
+}
+
+void ManageSessions::addToRegistry(std::shared_ptr<ClientSession> cs) {
+    std::lock_guard<std::mutex> lock(m_registryMutex);
+    m_sessionRegistry[cs->client_id] = cs;
+}
+
 }
