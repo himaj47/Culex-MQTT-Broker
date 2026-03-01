@@ -1,21 +1,39 @@
 #pragma once
-#include "core/client.h"
+#include "core/session.h"
+#include "handlers.h"
+#include <chrono>
 
 namespace culex {
+
+struct ClientSession {
+    std::string client_id;
+    uint16_t keep_alive{0};
+    bool connected{false};
+
+    std::unordered_set<std::string> subscriptions;
+    std::weak_ptr<PacketHandler> session;
+
+    std::chrono::system_clock::time_point last_activity;
+
+    // future:
+    // inflight QoS1
+    // QoS2 state
+    // message queue
+};
 
 class TopicTree;
 class ManageSessions;
 class Executor;
 
-class PacketHandler : public Client {
+class PacketHandler : public Session {
 public:
     PacketHandler(int fd, ManageSessions& session_manager, Executor& executor, TopicTree&);
-
-    // for testing, packets look like "{packet_type;topic;payload}"
     void parseData() override;
+    bool forceDisconnect();
 
 private:
     TopicTree& m_topicTree;
+    ManageSessions& m_manageSessions;
 };
 
 }

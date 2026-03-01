@@ -1,26 +1,60 @@
 #include "packethandler.h"
 #include "managesessions.h"
-#include "packet.h"
+#include "packets.h"
 
 namespace culex {
 
 PacketHandler::PacketHandler(int fd, ManageSessions& session_manager, Executor& executor, TopicTree& topic_tree)
-    : Client(fd, session_manager, executor), m_topicTree(topic_tree) {
+    : Session(fd, session_manager, executor), m_topicTree(topic_tree), m_manageSessions(session_manager) {
 }
 
 void PacketHandler::parseData() {
-    std::lock_guard<std::mutex> lock(m_recvBuffMutex);
-    std::string_view temp(m_recvBuff.data(), m_recvBuff.size());
-
+    int rc = 0;
+    size_t available_bytes = 0;
     Packet pkt;
-    if (pkt.pack(temp.data())) {
-        if (pkt.type == "PUB") m_topicTree.publish(pkt.topic, pkt.payload);
-        else if (pkt.type == "SUB") m_topicTree.subscribe(pkt.topic, this);
+    {
+        std::lock_guard<std::mutex> lock(m_recvBuffMutex);
+        available_bytes = m_recvBuff.size();
+        const uint8_t* buff = m_recvBuff.data();
+        rc = unpack(pkt, &buff, available_bytes);
     }
 
-    // handle the case where the parser receives partial/corrupted data packet
+    std::vector<uint8_t> send_buff;
+    if (rc == MQTT_OK) {
 
-    m_recvBuff.erase(m_recvBuff.begin(), m_recvBuff.begin() + temp.length());
+        // erase packet from buffer
+        {
+            std::lock_guard<std::mutex> lock(m_recvBuffMutex);
+            m_recvBuff.erase(m_recvBuff.begin(), m_recvBuff.begin() + pkt.pkt_len);
+        }
+
+        // call the handler based on packet type
+        const handler& handle = handlers[static_cast<uint8_t>(pkt.header.type)];
+        if (handle) {
+            rc = handle(pkt, send_buff, m_manageSessions, std::static_pointer_cast<PacketHandler>(shared_from_this()));
+        }
+
+        if (rc == MQTT_CONNECTION_ACCEPTED) {
+            pushDataToSend(std::move(send_buff));
+        }
+
+        else if (rc == MQTT_UNACCEPTABLE_PROTOCOL_VERSION) {
+            pushDataToSend(std::move(send_buff));
+            forceDisconnect();
+        }
+
+        else {
+            std::cout << "[PacketHandler] error while build response packet!\n";
+        }
+    }
+
+    else {
+        std::cout << "[PacketHandler] invalid or partial packet!\n";
+    }
+}
+
+bool PacketHandler::forceDisconnect() {
+    m_manageSessions.removeSession(m_fd.fd());
 }
 
 }
