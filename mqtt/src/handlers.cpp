@@ -71,6 +71,7 @@ int connectHandler(const Packet& pkt,
 
         cs->client_id = cn_pkt.client_id;
         cs->keep_alive = cn_pkt.keep_alive;
+        cs->cleansession = cn_pkt.cf.cleansession;
         
         // build connack packet
         Header header{};
@@ -92,9 +93,10 @@ int connectHandler(const Packet& pkt,
         if (add_to_registry) {
             cs->connected = true;
             cs->session = packet_handler;
-            cs->last_activity = std::chrono::system_clock::now();
+            cs->last_activity.store(session_manager.now_ms(), std::memory_order_relaxed);
 
             session_manager.addToRegistry(cs);
+            session_manager.scheduleExpiry(cs);
         }
 
         // pack connack
