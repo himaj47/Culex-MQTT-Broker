@@ -302,6 +302,23 @@ static int unpack_publish(Header& header, Packet& packet, const uint8_t** buff, 
     return MQTT_OK;
 }
 
+static int unpack_ack(Header& header, Packet& packet, const uint8_t** buff, size_t available_bytes) {
+    Ack ack{};
+    const uint8_t* start = *buff;
+    int remaining_len = 0;
+
+    if (is_partial(buff, available_bytes, remaining_len)) 
+        return -MQTT_ERR;
+
+    int length_of_remaining_len = (*buff - start) + 1;
+    // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
+    packet.pkt_len = sizeof(uint8_t) + length_of_remaining_len + remaining_len;
+
+    ack.packet_id = unpack_u16(buff);
+
+    packet.pkt = std::move(ack);
+}
+
 static int unpack_subscribe(Header& header, Packet& packet, const uint8_t** buff, size_t available_bytes) {
     Subscribe sub{};
     const uint8_t* start = *buff;
