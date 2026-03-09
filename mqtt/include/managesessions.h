@@ -3,6 +3,7 @@
 #include "core/sessionmanager.h"
 #include "topictree.h"
 #include "packethandler.h"
+#include "packets.h"
 
 #include <unordered_set>
 
@@ -14,6 +15,17 @@ struct ExpiryEntry {
 
     bool operator>(const ExpiryEntry& other) const {
         return expiry_ms > other.expiry_ms;
+    }
+};
+
+struct RetransmitEntry {
+    int64_t retry_ms{0};
+    uint16_t packet_id;
+    PacketType packet_type;
+    std::weak_ptr<ClientSession> session;
+
+    bool operator>(const RetransmitEntry& other) const {
+        return retry_ms > other.retry_ms;
     }
 };
 
@@ -34,6 +46,17 @@ public:
     int getNextTimeoutMs();
     void processExpiredSessions();
 
+    void routePacket(Packet& publisher, std::shared_ptr<ClientSession> cs = nullptr);
+    void sendToClient(std::shared_ptr<ClientSession> session,
+                      Packet& pub);
+
+    void createSubscription(std::string topic,
+                            uint8_t qos, 
+                            std::string client_id);
+    
+    void scheduleRetransmission(uint16_t packet_id, PacketType type, std::shared_ptr<ClientSession> cs);
+    void processRetransmissions();
+
     static int64_t now_ms() {
         return std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
@@ -50,8 +73,15 @@ private:
         std::greater<ExpiryEntry>
     > m_expiryHeap;
 
+    std::priority_queue<
+        RetransmitEntry,
+        std::vector<RetransmitEntry>,
+        std::greater<RetransmitEntry>
+    > m_retransmitHeap;
+
     std::mutex m_registryMutex;
     std::mutex m_expiryMutex;
+    std::mutex m_retransmitMutex;
 };
 
 }

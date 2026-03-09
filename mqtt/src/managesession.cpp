@@ -136,4 +136,118 @@ void ManageSessions::processExpiredSessions() {
     }
 }
 
+void ManageSessions::scheduleRetransmission(uint16_t packet_id, PacketType type, std::shared_ptr<ClientSession> cs) {
+    int64_t retry = now_ms() + RETRY_INTERVAL_S*1000;
+
+    RetransmitEntry entry{retry, packet_id, type, cs};
+    {
+        std::lock_guard<std::mutex> lock(m_retransmitMutex);
+        m_retransmitHeap.push(entry);
+    }
+}
+
+void ManageSessions::processRetransmissions() {
+    int64_t now = now_ms();
+    {
+        std::lock_guard<std::mutex> lock(m_registryMutex);
+
+        while (!m_retransmitHeap.empty()) {
+            auto entry = m_retransmitHeap.top();
+
+            if (entry.retry_ms <= now) {
+                if (auto cs = entry.session.lock()) {
+                    Packet pkt = cs->getPacket(entry.packet_id, entry.packet_type);
+                    if (pkt.pkt_len) {
+                        std::vector<uint8_t> buff;
+
+                        if (entry.packet_type == PacketType::PUBLISH) {
+                            pkt.header.dup = true;
+                            routePacket(pkt);
+                        } 
+                        else {
+                            build_ack(entry.packet_id, pkt.header.type, buff);
+
+                            if (auto transport = cs->session.lock()) {
+                                transport->pushDataToSend(buff);
+                            }
+                        }
+
+                        m_retransmitHeap.pop();
+                        continue;
+                    }
+                }
+            }
+
+            break;
+        }
+    }
+}
+
+void ManageSessions::routePacket(Packet& packet, std::shared_ptr<ClientSession> cs) {
+    if (packet.header.type == PacketType::PUBLISH) {
+        const Publish& pub = std::get<Publish>(packet.pkt);
+
+        auto subs = m_topicTree.match(pub.topic);
+        for (auto& sub : subs) {
+            if (auto session = sub.session.lock()) {
+
+                // persistent session
+                if (!session->connected) {
+                    if (packet.header.qos > 0) {
+                        session->storeMessage(packet);
+                    }
+                    // drop messages for QoS level 0
+                }
+                else {
+                    uint8_t effective_qos = std::min(packet.header.qos, sub.qos);
+                    packet.header.qos = effective_qos;
+                    sendToClient(session, packet);
+                }
+            }
+        }
+    }
+
+    else {
+        sendToClient(cs, packet);
+    }
+}
+
+void ManageSessions::sendToClient(std::shared_ptr<ClientSession> session,
+                                  Packet& packet) {
+
+    std::vector<uint8_t> buff;
+    
+    // broker becomes the sender of publish packet
+    if (packet.header.type == PacketType::PUBLISH) {
+        uint16_t packet_id = 0;
+
+        if (packet.header.qos > 0) {
+            auto pub = std::get<Publish>(packet.pkt);
+
+            packet_id = session->allocatePacketId();
+            pub.packet_id = packet_id;
+
+            session->storeInflight(packet);
+            scheduleRetransmission(pub.packet_id, packet.header.type, session);
+        }
+
+        build_publish(packet, packet_id, buff);
+
+    } else {
+        const Ack& ack = std::get<Ack>(packet.pkt);
+        build_ack(ack.packet_id, packet.header.type, buff);
+    }
+
+    if (auto transport = session->session.lock()) {
+        transport->pushDataToSend(std::move(buff));
+    }
+}
+
+void ManageSessions::createSubscription(std::string topic,
+                                        uint8_t qos, 
+                                        std::string client_id) {
+
+    if (auto cs = sessionPresent(client_id)) {
+        m_topicTree.subscribe(topic, cs, qos);
+    }
 }
