@@ -8,6 +8,10 @@ PacketHandler::PacketHandler(int fd, ManageSessions& session_manager, Executor& 
     : Session(fd, session_manager, executor), m_topicTree(topic_tree), m_manageSessions(session_manager) {
 }
 
+std::string PacketHandler::getClientId() {
+    return client_id;
+}
+
 void PacketHandler::parseData() {
     int rc = 0;
     size_t available_bytes = 0;
@@ -35,6 +39,8 @@ void PacketHandler::parseData() {
         }
 
         if (rc == MQTT_CONNECTION_ACCEPTED) {
+            const Connect& cn = std::get<Connect>(pkt.pkt);
+            client_id = cn.client_id;
             pushDataToSend(std::move(send_buff));
         }
 
