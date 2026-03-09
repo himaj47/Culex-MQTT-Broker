@@ -10,7 +10,8 @@ TopicTree::~TopicTree() {
 
 }
 
-void TopicTree::getWords(std::string str, std::vector<std::string>& words) {
+void TopicTree::split(std::string str, 
+                      std::vector<std::string>& words) {
     std::string temp = "";
     int length = str.length();
 
@@ -33,7 +34,9 @@ void TopicTree::getWords(std::string str, std::vector<std::string>& words) {
     }
 }
 
-void TopicTree::handleWildCard(Node* root, std::vector<std::string>& sub_topics, std::vector<Node*>& vec) {
+void TopicTree::handleWildCard(Node* root, 
+                               std::vector<std::string>& sub_topics, 
+                               std::vector<Node*>& vec) {
     bool pushed = false;
     if (sub_topics.empty()) {
         vec.push_back(root);
@@ -51,7 +54,11 @@ void TopicTree::handleWildCard(Node* root, std::vector<std::string>& sub_topics,
     }
 }
 
-void TopicTree::getNode(std::vector<Node*>& vec, Node* root, std::vector<std::string>& sub_topics, int idx) {
+void TopicTree::getNode(std::vector<Node*>& vec,
+                        Node* root, 
+                        std::vector<std::string>& sub_topics, 
+                        int idx) {
+
     for (int i = idx; i < sub_topics.size(); i++) {
         if (sub_topics[i] == "+" || sub_topics[i] == "#") {
             std::vector<std::string> link_topics = root->getLinkTopics();
@@ -78,31 +85,36 @@ void TopicTree::getNode(std::vector<Node*>& vec, Node* root, std::vector<std::st
     vec.push_back(root);
 }
 
-bool TopicTree::searchTopic(std::string str) {
-    return true;
-}   
-
-void TopicTree::publish(std::string topic, std::string msg) {
-    std::vector<std::string> words;
-    getWords(topic, words);
-
+std::vector<Subscription> TopicTree::match(const std::string& topic) {
     std::vector<Node*> nodes;
+    std::vector<std::string> words;
+    split(topic, words);
+
     getNode(nodes, m_root.get(), words);
-    
+
+    std::vector<Subscription> result;
+
     for (auto node : nodes) {
-        node->publish(msg);
+        for (auto& sub : node->subscribers) {
+            result.push_back(sub.second);
+        }
     }
+
+    return result;
 }
 
-void TopicTree::subscribe(std::string topic, PacketHandler* client) {
-    std::vector<std::string> words;
-    getWords(topic, words);
+void TopicTree::subscribe(const std::string& topic,
+                          std::shared_ptr<ClientSession> session,
+                          uint8_t qos) {
 
+    std::vector<std::string> words;
+    split(topic, words);
+    
     std::vector<Node*> nodes;
     getNode(nodes, m_root.get(), words);
 
     for (auto node : nodes) {
-        node->subscribe(client);
+        node->subscribe(session, qos);
     }
 }
 

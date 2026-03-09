@@ -11,38 +11,25 @@
 
 namespace culex {
 
-class Subscribers {
-public:
-    Subscribers(){}
-
-    void subscribe(PacketHandler* client) {
-        m_subscribers.push_back(client);
-    }
-
-    void publish(std::string msg) {
-        if (m_subscribers.empty()) {
-            std::cout << "no subscribers yet!!\n";
-        }
-
-        for (auto client : m_subscribers) {
-            client->pushDataToSend(msg);
-        }
-    }
-
-private:
-    std::vector<PacketHandler*> m_subscribers;
+struct Subscription {
+    std::weak_ptr<ClientSession> session;
+    uint8_t qos;
 };
 
 struct Node {
     std::string level;
     std::unordered_map<std::string, std::unique_ptr<Node>> links;
-    std::unique_ptr<Subscribers> subs = std::make_unique<Subscribers>();
+    std::unordered_map<std::string, Subscription> subscribers;
+
+    std::mutex links_mutex;
+    std::mutex subscribers_mutex;
 
     Node(std::string level) {
         this->level = level;
     }
 
     bool ispresent(std::string str) {
+        std::lock_guard<std::mutex> lock(links_mutex);
         auto it = links.find(str);
         if (it == links.end())
             return false;
@@ -50,14 +37,17 @@ struct Node {
     }
 
     void addLink(std::string str) {
+        std::lock_guard<std::mutex> lock(links_mutex);
         links[str] = std::make_unique<Node>(str);
     }
 
     Node* getLink(std::string str) {
+        std::lock_guard<std::mutex> lock(links_mutex);
         return links[str].get();
     } 
 
     std::vector<std::string> getLinkTopics() {
+        std::lock_guard<std::mutex> lock(links_mutex);
         std::vector<std::string> temp;
         for (auto const& pair : links) {
             temp.push_back(pair.first);
@@ -66,12 +56,10 @@ struct Node {
         return temp;
     }
 
-    void publish(std::string msg) {
-        subs->publish(msg);
-    }
-
-    void subscribe(PacketHandler* client) {
-        subs->subscribe(client);
+    void subscribe(std::shared_ptr<ClientSession> cs, uint8_t qos) {
+        std::lock_guard<std::mutex> lock(subscribers_mutex);
+        Subscription subscription{cs, qos};
+        subscribers[cs->client_id] = subscription;
     }
 };
 
@@ -80,12 +68,13 @@ public:
     TopicTree();
     ~TopicTree();
 
-    bool searchTopic(std::string);
-    void publish(std::string topic, std::string msg);
-    void subscribe(std::string topic, PacketHandler*);
+    std::vector<Subscription> match(const std::string& topic);
+    void subscribe(const std::string& topic,
+                   std::shared_ptr<ClientSession> session,
+                   uint8_t qos);
 
 private:
-    void getWords(std::string str, std::vector<std::string>& words);
+    void split(std::string str, std::vector<std::string>& words);
     void handleWildCard(Node* root, std::vector<std::string>& sub_topics, std::vector<Node*>& vec);
     void getNode(std::vector<Node*>& vec, Node* root, std::vector<std::string>& sub_topics, int idx = 0);
     std::unique_ptr<Node> m_root;
