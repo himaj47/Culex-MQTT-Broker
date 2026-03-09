@@ -11,7 +11,7 @@ class ManageSessions;
 class Packet;
 class PacketHandler;
 
-using handler = std::function<size_t(const Packet& pkt, 
+using handler = std::function<size_t(Packet& pkt, 
                                      std::vector<uint8_t>& buff,
                                      ManageSessions& session_manager, 
                                      std::shared_ptr<PacketHandler> packet_handler)>;

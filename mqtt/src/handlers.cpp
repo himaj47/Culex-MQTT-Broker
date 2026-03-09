@@ -21,7 +21,7 @@ const handler handlers[15] = {nullptr,
                               nullptr,
                               disconnectHandler};
 
-int connectHandler(const Packet& pkt, 
+int connectHandler(Packet& pkt, 
                    std::vector<uint8_t>& buff, 
                    ManageSessions& session_manager, 
                    std::shared_ptr<PacketHandler> packet_handler) {
@@ -31,7 +31,7 @@ int connectHandler(const Packet& pkt,
     if (std::holds_alternative<Connect>(pkt.pkt)) {
         return_code = MQTT_CONNECTION_ACCEPTED;
 
-        const Connect& cn_pkt = std::get<Connect>(pkt.pkt);
+        Connect& cn_pkt = std::get<Connect>(pkt.pkt);
         Connack connack_pkt{};
 
         bool add_to_registry = false;
@@ -102,12 +102,172 @@ int connectHandler(const Packet& pkt,
         // pack connack
         buff.push_back(header.pack());
 
-        uint8_t remaining_len = 0;
-        encode_length(2, &remaining_len);
-        buff.push_back(remaining_len);
+        std::vector<uint8_t> remaining_len_buff;
+        encode_length(2, remaining_len_buff);
+
+        buff.insert(buff.end(), remaining_len_buff.begin(), remaining_len_buff.end());
         buff.push_back(connack_pkt.pack());
 
         return return_code;
+    }
+
+    return return_code;
+}
+
+int publishHandler(Packet& pkt, 
+                   std::vector<uint8_t>& buff, 
+                   ManageSessions& session_manager, 
+                   std::shared_ptr<PacketHandler> packet_handler) {
+
+    int return_code = -MQTT_ERR;
+
+    if (std::holds_alternative<Publish>(pkt.pkt)) {
+        Publish& pub = std::get<Publish>(pkt.pkt);
+        
+        Header header{};
+
+        if (pkt.header.qos == 0) {
+            // send publish packet to subscribed clients
+            session_manager.routePacket(pkt);
+        }
+
+        else if (pkt.header.qos == 1) {
+            session_manager.routePacket(pkt);
+
+            build_ack(pub.packet_id, PacketType::PUBACK, buff);
+            packet_handler->pushDataToSend(buff);
+        }
+
+        else {
+            // store as inflight
+            auto cs = session_manager.sessionPresent(packet_handler->getClientId());
+            cs->storeInflight(pkt);
+
+            // build and send pubrec
+            build_ack(pub.packet_id, PacketType::PUBREC, buff);
+            packet_handler->pushDataToSend(buff);
+        }
+
+        return_code = MQTT_OK;
+    }
+
+    return return_code;
+}
+
+int subscribeHandler(Packet& pkt, 
+                  std::vector<uint8_t>& buff, 
+                  ManageSessions& session_manager, 
+                  std::shared_ptr<PacketHandler> packet_handler) {
+
+    if (std::holds_alternative<Subscribe>(pkt.pkt)) {
+        Subscribe& sub = std::get<Subscribe>(pkt.pkt);
+        std::vector<uint8_t> return_codes;
+
+        for (auto const& tuple : sub.payload) {
+            if (tuple.qos < 3) {
+                session_manager.createSubscription(tuple.topic, 
+                                                tuple.qos, 
+                                                packet_handler->getClientId());
+                return_codes.push_back(tuple.qos);
+            }
+            else
+                return_codes.push_back(0x80);
+        }
+
+        build_suback(sub.packet_id, return_codes, buff);
+        packet_handler->pushDataToSend(buff);
+    }
+}
+
+int pubackHandler(Packet& pkt, 
+                  std::vector<uint8_t>& buff, 
+                  ManageSessions& session_manager, 
+                  std::shared_ptr<PacketHandler> packet_handler) {
+
+    int return_code = -MQTT_ERR;
+
+    if (std::holds_alternative<Puback>(pkt.pkt)) {
+        Puback& puback = std::get<Puback>(pkt.pkt);
+        auto cs = session_manager.sessionPresent(packet_handler->getClientId());
+
+        // remove publish packet from inflight
+        cs->removeFromInflight(puback.packet_id);
+
+        return_code = MQTT_OK;
+    }
+
+    return return_code;
+}
+
+int pubrecHandler(Packet& pkt, 
+                  std::vector<uint8_t>& buff, 
+                  ManageSessions& session_manager, 
+                  std::shared_ptr<PacketHandler> packet_handler) {
+    
+    int return_code = -MQTT_ERR;
+
+    if (std::holds_alternative<Pubrec>(pkt.pkt)) {
+        Pubrec& pubrec = std::get<Pubrec>(pkt.pkt);
+        auto cs = session_manager.sessionPresent(packet_handler->getClientId());
+
+        // store pubrel in inflight
+        auto pkt_pubrel = build_ack(pubrec.packet_id, PacketType::PUBREL, buff);
+        cs->storeInflightAcknowlegement(pkt_pubrel);
+
+        // schedule retransmission for pubrel
+        session_manager.scheduleRetransmission(pubrec.packet_id, PacketType::PUBREL, cs);
+
+        // send pubrel packet
+        packet_handler->pushDataToSend(buff);
+
+        return_code = MQTT_OK;
+    }
+
+    return return_code;
+}
+
+int pubrelHandler(Packet& pkt, 
+                  std::vector<uint8_t>& buff, 
+                  ManageSessions& session_manager, 
+                  std::shared_ptr<PacketHandler> packet_handler) {
+    
+    int return_code = -MQTT_ERR;
+
+    if (std::holds_alternative<Pubrel>(pkt.pkt)) {
+        Pubrel& pubrel = std::get<Pubrel>(pkt.pkt);
+        auto cs = session_manager.sessionPresent(packet_handler->getClientId());
+
+        // remove publish packet from inflight
+        Packet pub_pkt = std::move(cs->removeFromInflight(pubrel.packet_id));
+
+        if (pub_pkt.header.type == PacketType::PUBLISH) {
+            session_manager.routePacket(pub_pkt);
+            return_code = MQTT_OK;
+        } 
+
+        // send pubcomp even if packet id not present in inflight
+        build_ack(pubrel.packet_id, PacketType::PUBCOMP, buff);
+        packet_handler->pushDataToSend(buff);
+    }
+
+    return return_code;
+}
+
+int pubcompHandler(Packet& pkt, 
+                   std::vector<uint8_t>& buff, 
+                   ManageSessions& session_manager, 
+                   std::shared_ptr<PacketHandler> packet_handler) {
+
+    int return_code = -MQTT_ERR;
+
+    if (std::holds_alternative<Pubrec>(pkt.pkt)) {
+        Pubrec& pubcomp = std::get<Pubcomp>(pkt.pkt);
+
+        // remove pubrel packet from inflight acknowlegement
+        auto cs = session_manager.sessionPresent(packet_handler->getClientId());
+        cs->removeFromInflightAcknowlegement(pubcomp.packet_id);
+
+        return_code = MQTT_OK;
     }
 
     return return_code;
