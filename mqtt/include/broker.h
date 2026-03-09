@@ -49,6 +49,7 @@ void Broker::run() {
         }
 
         m_manageSessions.processExpiredSessions();
+        m_manageSessions.processRetransmissions();
     }
 }
 
