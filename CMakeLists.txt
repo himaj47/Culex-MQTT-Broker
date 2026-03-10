@@ -19,7 +19,7 @@ add_executable(${PROJECT_NAME}
     mqtt/src/managesession.cpp
     mqtt/src/handlers.cpp
     mqtt/src/packets.cpp
-    mqtt/src/main.cpp
+    mqtt/src/broker.cpp
 )
 
 target_link_directories(${PROJECT_NAME} PRIVATE /usr/local/lib)
