@@ -389,17 +389,6 @@ int unpack(Packet& pkt, const uint8_t** buff, size_t available_bytes) {
     return rc;
 }
 
-void pack_u16(std::vector<uint8_t>& buff, uint16_t val) {
-    uint16_t value = htons(val);
-    buff.push_back(value);
-}
-
-void pack_string16(std::vector<uint8_t>& buff, std::string& str) {
-    int len = str.length();
-    buff.resize(len);
-    memcpy(buff.data(), str.data(), len);
-}
-
 static void build_publish(const Packet& publisher, uint16_t packet_id, std::vector<uint8_t>& buff) {
     const Publish& pub = std::get<Publish>(publisher.pkt);
 
