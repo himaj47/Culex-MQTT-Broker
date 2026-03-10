@@ -5,21 +5,38 @@
 
 namespace culex {
 
-const handler handlers[15] = {nullptr,  
-                              connectHandler,
-                              nullptr,
-                              publishHandler,
-                              pubackHandler,
-                              pubrecHandler,
-                              pubrelHandler,
-                              pubcompHandler,
-                              subscribeHandler,
-                              nullptr,
-                              unsubscribeHandler,
-                              nullptr,
-                              pingreqHandler,
-                              nullptr,
-                              disconnectHandler};
+const handler handlers[15] = {
+    nullptr,  
+    connectHandler,
+    nullptr,
+    publishHandler,
+    pubackHandler,
+    pubrecHandler,
+    pubrelHandler,
+    pubcompHandler,
+    subscribeHandler,
+    nullptr,
+    unsubscribeHandler,
+    nullptr,
+    pingreqHandler,
+    nullptr,
+    disconnectHandler
+};
+
+const unpackHandler unpack_handlers[11] = {
+    nullptr,
+    unpack_connect,
+    nullptr,
+    unpack_publish,
+    unpack_ack,
+    unpack_ack,
+    unpack_ack,
+    unpack_ack,
+    unpack_subscribe,
+    nullptr,
+    unpack_unsubscribe
+};
+
 
 int connectHandler(Packet& pkt, 
                    std::vector<uint8_t>& buff, 
@@ -271,6 +288,282 @@ int pubcompHandler(Packet& pkt,
     }
 
     return return_code;
+}
+
+int unsubscribeHandler(Packet& pkt, 
+                       std::vector<uint8_t>& buff, 
+                       ManageSessions& session_manager, 
+                       std::shared_ptr<PacketHandler> packet_handler) {
+                    
+}
+
+int pingreqHandler(Packet& pkt, 
+                   std::vector<uint8_t>& buff, 
+                   ManageSessions& session_manager, 
+                   std::shared_ptr<PacketHandler> packet_handler) {
+
+}
+
+int disconnectHandler(Packet& pkt, 
+                      std::vector<uint8_t>& buff, 
+                      ManageSessions& session_manager, 
+                      std::shared_ptr<PacketHandler> packet_handler) {
+
+}
+
+
+bool is_partial(const uint8_t** buff, size_t available_bytes, int& remaining_len) {
+    const uint8_t* start = *buff;
+
+    if (available_bytes < 5) 
+        return true;
+
+    remaining_len = decode_length(buff);
+    if ((remaining_len + 1) > available_bytes)
+        return true;
+
+    return false;
+}
+
+int unpack_connect(Header& header, Packet& packet, const uint8_t** buff, size_t available_bytes) {
+    Connect cn{};
+    const uint8_t* start = *buff;
+    int remaining_len = 0;
+
+    if (is_partial(buff, available_bytes, remaining_len)) 
+        return -MQTT_ERR;
+
+    int length_of_remaining_len = (*buff - start) + 1;
+    // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
+    packet.pkt_len = sizeof(uint8_t) + length_of_remaining_len + remaining_len;
+
+    std::string protocol_name;
+    unpack_string16(buff, protocol_name);
+
+    if (protocol_name != "MQTT") {
+        std::cout << "Invalid protocol name!\n";
+        return -MQTT_ERR; 
+    }
+
+    cn.level = unpack_u8(buff);
+
+    uint8_t byte = unpack_u8(buff);
+    cn.cf = ConnectFlags::unpack(byte);
+
+    cn.keep_alive = unpack_u16(buff);
+    unpack_string16(buff, cn.client_id);
+
+    if (cn.cf.will) {
+        unpack_string16(buff, cn.will_topic);
+        unpack_string16(buff, cn.will_msg);
+    }
+    if (cn.cf.username) {
+        unpack_string16(buff, cn.username);
+    }
+    if (cn.cf.passwd) {
+        unpack_string16(buff, cn.passwd);
+    }
+
+    packet.pkt = std::move(cn);
+    return MQTT_OK;
+}
+
+int unpack_publish(Header& header, Packet& packet, const uint8_t** buff, size_t available_bytes) {
+    Publish pub{};
+    const uint8_t* start = *buff;
+    int remaining_len = 0;
+
+    if (is_partial(buff, available_bytes, remaining_len)) 
+        return -MQTT_ERR;
+
+    int length_of_remaining_len = (*buff - start) + 1;
+    // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
+    packet.pkt_len = sizeof(uint8_t) + length_of_remaining_len + remaining_len;
+
+    unpack_string16(buff, pub.topic);
+    int payload_size = remaining_len - (pub.topic.length() + sizeof(uint16_t));
+
+    if (packet.header.qos > 0) {
+        pub.packet_id = unpack_u16(buff);
+        payload_size -= sizeof(uint16_t);
+    }
+
+    pub.payload.resize(payload_size);
+    memcpy(pub.payload.data(), *buff, sizeof(uint8_t) * payload_size);
+    *buff += payload_size;
+
+    packet.pkt = std::move(pub);
+    return MQTT_OK;
+}
+
+int unpack_ack(Header& header, Packet& packet, const uint8_t** buff, size_t available_bytes) {
+    Ack ack{};
+    const uint8_t* start = *buff;
+    int remaining_len = 0;
+
+    if (is_partial(buff, available_bytes, remaining_len)) 
+        return -MQTT_ERR;
+
+    int length_of_remaining_len = (*buff - start) + 1;
+    // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
+    packet.pkt_len = sizeof(uint8_t) + length_of_remaining_len + remaining_len;
+
+    ack.packet_id = unpack_u16(buff);
+
+    packet.pkt = std::move(ack);
+}
+
+int unpack_subscribe(Header& header, Packet& packet, const uint8_t** buff, size_t available_bytes) {
+    Subscribe sub{};
+    const uint8_t* start = *buff;
+    int remaining_len = 0;
+
+    if (is_partial(buff, available_bytes, remaining_len)) 
+        return -MQTT_ERR;
+
+    int length_of_remaining_len = (*buff - start) + 1;
+    // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
+    packet.pkt_len = sizeof(uint8_t) + length_of_remaining_len + remaining_len;
+
+    sub.packet_id = unpack_u16(buff);
+    
+    int payload_len = remaining_len - sizeof(uint16_t);
+    
+    while (payload_len > 0) {
+        tuple t{};
+        unpack_string16(buff, t.topic);
+        t.qos = unpack_u8(buff);
+        sub.payload.push_back(t);
+
+        payload_len -= (sizeof(uint16_t) + t.topic.length() + sizeof(uint8_t));
+    }
+
+    packet.pkt = std::move(sub);
+    return MQTT_OK;
+}
+
+
+int unpack_unsubscribe(Header& header, 
+                       Packet& packet, 
+                       const uint8_t** buff, 
+                       size_t available_bytes) {
+
+}
+
+int unpack(Packet& pkt, const uint8_t** buff, size_t available_bytes) {
+    int rc = 0;
+
+    Header header;
+    uint8_t byte = unpack_u8(buff);
+    header = Header::unpack(byte);
+
+    PacketType type = static_cast<PacketType>(header.type);
+    if (type == PacketType::DISCONNECT ||
+        type == PacketType::PINGREQ ||
+        type == PacketType::PINGRESP) {
+        pkt.header = header;
+
+    } else {
+        const unpackHandler& handler = unpack_handlers[static_cast<uint8_t>(header.type)];
+        if (handler) 
+            rc = handler(header, pkt, buff, available_bytes);
+        else {
+            std::cout << "invalid type!!\n";
+            rc = -MQTT_ERR;
+        }
+    }
+
+    return rc;
+}
+
+void build_publish(const Packet& publisher, uint16_t packet_id, std::vector<uint8_t>& buff) {
+    const Publish& pub = std::get<Publish>(publisher.pkt);
+
+    Header header = publisher.header;
+    // how to handle dup and retain flag??
+    buff.push_back(header.pack());
+
+    int remaining_len = (2 + pub.topic.length()) + pub.payload.size();
+
+    // currently only handled QoS 0
+    if (publisher.header.qos > 0) {
+        remaining_len += 2;
+    }
+
+    std::vector<uint8_t> b;
+    int num_bytes = encode_length(remaining_len, b);
+    buff.insert(buff.end(), b.begin(), b.end());
+
+    pack_u16(buff, pub.topic.length());
+
+    std::vector<uint8_t> str_buff;
+    pack_string16(str_buff, pub.topic);
+    buff.insert(buff.end(), str_buff.begin(), str_buff.end());
+
+    if (publisher.header.qos > 0) {
+        // unhandled case: inserting packet id
+        pack_u16(buff, 0);
+    }
+
+    buff.insert(buff.end(), pub.payload.begin(), pub.payload.end());
+}
+
+Packet build_ack(uint16_t packet_id, PacketType type, std::vector<uint8_t>& buff) {
+    Ack ack{};
+    ack.packet_id = packet_id;
+
+    return pack_ack(ack, type, buff);
+}
+
+Packet pack_ack(const Ack& ack, PacketType type, std::vector<uint8_t>& buff) {
+    Header header{};
+    header.type = type;
+
+    if (type == PacketType::PUBREL) {
+        uint8_t hdr = (static_cast<uint8_t>(header.type) << 4) & 0xF2;
+        buff.push_back(hdr);
+    }
+
+    else 
+        buff.push_back(header.pack());
+
+    uint8_t remaining_len = 2;
+    buff.push_back(remaining_len);
+
+    buff.push_back(ack.pack());
+
+    Packet packet;
+    packet.header = header;
+    packet.pkt = ack;
+    packet.pkt_len = sizeof(uint8_t)*2 + remaining_len;
+
+    return packet;
+}
+
+void build_suback(uint16_t packet_id, std::vector<uint8_t>& return_codes, std::vector<uint8_t>& buff) {
+    Suback suback{};
+    suback.packet_id = packet_id;
+    suback.return_codes = return_codes;
+
+    pack_suback(suback, buff);
+}
+
+void pack_suback(const Suback& suback, std::vector<uint8_t>& buff) {
+    Header header{};
+    header.type = PacketType::SUBACK;
+
+    buff.push_back(static_cast<uint8_t>(header.type));
+
+    int remaining_len = sizeof(uint16_t) + suback.return_codes.size();
+    std::vector<uint8_t> b;
+    int num_bytes = encode_length(remaining_len, b);
+    buff.insert(buff.end(), b.begin(), b.end());
+
+    pack_u16(buff, suback.packet_id);
+
+    for (auto rc : suback.return_codes) {
+        buff.push_back(rc);
+    }
 }
 
 }
