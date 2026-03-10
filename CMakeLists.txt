@@ -14,10 +14,12 @@ include_directories(
 add_subdirectory(core)
 
 add_executable(${PROJECT_NAME}
-    mqtt/src/mqttbroker.cpp
     mqtt/src/packethandler.cpp
     mqtt/src/topictree.cpp
     mqtt/src/managesession.cpp
+    mqtt/src/handlers.cpp
+    mqtt/src/packets.cpp
+    mqtt/src/main.cpp
 )
 
 target_link_directories(${PROJECT_NAME} PRIVATE /usr/local/lib)
