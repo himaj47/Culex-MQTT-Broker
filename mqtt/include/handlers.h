@@ -5,12 +5,12 @@
 #include <cstdint>
 #include <memory>
 
+#include "packets.h"
+
 namespace culex {
 
 class ManageSessions;
 class PacketHandler;
-struct Packet;
-struct Header;
 
 using handler = std::function<size_t(Packet& pkt, 
                                      std::vector<uint8_t>& buff,

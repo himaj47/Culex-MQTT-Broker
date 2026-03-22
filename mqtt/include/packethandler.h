@@ -2,6 +2,7 @@
 #include "core/session.h"
 #include "handlers.h"
 #include <chrono>
+#include <unordered_set>
 
 namespace culex {
 
@@ -41,7 +42,7 @@ struct ClientSession {
     void storeInflight(const Packet& packet) {
         {
             std::lock_guard<std::mutex> lock(inflight_mutex);
-            const Publish& pub = std::get<Publish>(packet.pkt); 
+            const Publish& pub = std::get<Publish>(packet.pkt);  
 
             inflight.insert({pub.packet_id, packet});
         }

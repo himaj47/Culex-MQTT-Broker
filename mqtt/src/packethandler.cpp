@@ -1,6 +1,5 @@
 #include "packethandler.h"
 #include "managesessions.h"
-#include "packets.h"
 
 namespace culex {
 

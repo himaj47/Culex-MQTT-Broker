@@ -3,7 +3,6 @@
 #include "core/sessionmanager.h"
 #include "topictree.h"
 #include "packethandler.h"
-#include "packets.h"
 
 #include <unordered_set>
 
