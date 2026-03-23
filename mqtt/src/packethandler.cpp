@@ -53,8 +53,19 @@ void PacketHandler::parseData() {
         }
     }
 
+    else if (rc == MQTT_PARTIAL_PACKET) {
+        std::cout << "[PacketHandler] partial packet!\n";
+    }
+
     else {
-        std::cout << "[PacketHandler] invalid or partial packet!\n";
+        std::cout << "[PacketHandler] error! Disconnecting...\n";
+        
+        // check if persistent session
+        auto cs = m_manageSessions.sessionPresent(getClientId());
+        if (cs->cleansession) {
+            m_manageSessions.removeFromRegistry(getClientId());
+        }
+        forceDisconnect();
     }
 }
 
