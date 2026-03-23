@@ -8,12 +8,13 @@
 #include <variant>
 #include "core/utils.h"
 
-#define MQTT_OK             0
-#define MQTT_ERR            1
+#define MQTT_OK               0
+#define MQTT_ERR              1
+#define MQTT_PARTIAL_PACKET   2
 
 // return codes for connect packet
-#define MQTT_CONNECTION_ACCEPTED           0x00
-#define MQTT_UNACCEPTABLE_PROTOCOL_VERSION 0x01
+#define MQTT_CONNECTION_ACCEPTED            0x00
+#define MQTT_UNACCEPTABLE_PROTOCOL_VERSION  0x01
 
 // return codes for publish packet
 #define MQTT_PUBACK 0x05
@@ -145,10 +146,13 @@ struct Ack {
 typedef Ack Puback;
 // for QoS 2
 typedef Ack Pubrec;
-// response to a PUBREC Packet.
+// response to a PUBREC Packet
 typedef Ack Pubrel;
 // response to a PUBREL Packet
 typedef Ack Pubcomp;
+
+// response to UNSUBSCRIBE packet
+typedef Ack Unsuback;
 
 
 struct tuple {
@@ -163,8 +167,14 @@ struct Subscribe {
 
 
 struct Suback {
-    uint16_t packet_id;
+    uint16_t packet_id{0};
     std::vector<uint8_t> return_codes;
+};
+
+
+struct Unsubscribe {
+    uint16_t packet_id{0};
+    std::vector<std::string> topics;
 };
 
 
@@ -177,7 +187,8 @@ struct Packet {
         Ack,
         Connect,
         Publish,
-        Subscribe
+        Subscribe,
+        Unsubscribe
     >;
 
     packet pkt;
