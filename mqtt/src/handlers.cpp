@@ -320,7 +320,18 @@ int pingreqHandler(Packet& pkt,
                    std::vector<uint8_t>& buff, 
                    ManageSessions& session_manager, 
                    std::shared_ptr<PacketHandler> packet_handler) {
+    
+    int return_code = -MQTT_ERR;
 
+    Header header{};
+    header.type = PacketType::PINGREQ;
+
+    std::vector<uint8_t> buff;
+    buff.push_back(header.pack());
+
+    packet_handler->pushDataToSend(buff);
+    
+    return return_code;
 }
 
 int disconnectHandler(Packet& pkt, 
