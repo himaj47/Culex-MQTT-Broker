@@ -52,6 +52,9 @@ public:
     void createSubscription(std::string topic,
                             uint8_t qos, 
                             std::string client_id);
+
+    void removeSubscription(std::string topic,
+                            std::string client_id);
     
     void scheduleRetransmission(uint16_t packet_id, PacketType type, std::shared_ptr<ClientSession> cs);
     void processRetransmissions();

@@ -251,3 +251,13 @@ void ManageSessions::createSubscription(std::string topic,
         m_topicTree.subscribe(topic, cs, qos);
     }
 }
+
+void ManageSessions::removeSubscription(std::string topic,
+                        std::string client_id) {
+
+    if (auto cs = sessionPresent(client_id)) {
+        m_topicTree.unsubscribe(topic, cs);
+    }
+}
+
+}
