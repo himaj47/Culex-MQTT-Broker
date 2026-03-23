@@ -294,7 +294,26 @@ int unsubscribeHandler(Packet& pkt,
                        std::vector<uint8_t>& buff, 
                        ManageSessions& session_manager, 
                        std::shared_ptr<PacketHandler> packet_handler) {
-                    
+    
+    int return_code = -MQTT_ERR;
+
+    if (std::holds_alternative<Pubrec>(pkt.pkt)) {
+        Unsubscribe& unsub = std::get<Unsubscribe>(pkt.pkt);
+
+        // unsubscribe from topics 
+        for (auto topic : unsub.topics) {
+            session_manager.removeSubscription(topic, packet_handler->getClientId());
+        }
+
+        // build unsuback packet
+        std::vector<uint8_t> buff;
+        build_ack(unsub.packet_id, PacketType::UNSUBACK, buff);
+        packet_handler->pushDataToSend(buff);
+
+        return_code = MQTT_OK;
+    }
+
+    return return_code;
 }
 
 int pingreqHandler(Packet& pkt, 
@@ -448,6 +467,34 @@ int unpack_unsubscribe(Header& header,
                        const uint8_t** buff, 
                        size_t available_bytes) {
 
+    Unsubscribe unsub{};
+    const uint8_t* start = *buff;
+    int remaining_len = 0;
+
+    if (is_partial(buff, available_bytes, remaining_len)) 
+        return MQTT_PARTIAL_PACKET;
+
+    uint8_t first_byte = header.pack();
+    if ((first_byte & 0x02) != 0x02) {
+        return -MQTT_ERR;
+    }
+
+    int length_of_remaining_len = (*buff - start) + 1;
+    // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
+    packet.pkt_len = sizeof(uint8_t) + length_of_remaining_len + remaining_len;
+
+    unsub.packet_id = unpack_u16(buff);
+    
+    size_t payload_len = remaining_len - sizeof(uint16_t);
+    while (payload_len) {
+        std::string topic;
+        unpack_string16(buff, topic);
+        unsub.topics.push_back(topic);
+        payload_len -= (sizeof(uint16_t) + topic.length());
+    }
+
+    packet.pkt = std::move(unsub);
+    return MQTT_OK;
 }
 
 int unpack(Packet& pkt, const uint8_t** buff, size_t available_bytes) {
