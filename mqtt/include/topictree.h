@@ -19,6 +19,8 @@ struct Subscription {
 struct Node {
     std::string level;
     std::unordered_map<std::string, std::unique_ptr<Node>> links;
+
+    // <client_id, subscription>
     std::unordered_map<std::string, Subscription> subscribers;
 
     std::mutex links_mutex;
@@ -61,6 +63,12 @@ struct Node {
         Subscription subscription{cs, qos};
         subscribers[cs->client_id] = subscription;
     }
+
+    void unsubscribe(std::shared_ptr<ClientSession> cs) {
+        std::lock_guard<std::mutex> lock(subscribers_mutex);
+        if (subscribers.find(cs->client_id) != subscribers.end())
+            subscribers.erase(cs->client_id);
+    }
 };
 
 class TopicTree {
@@ -73,10 +81,22 @@ public:
                    std::shared_ptr<ClientSession> session,
                    uint8_t qos);
 
+    void unsubscribe(const std::string& topic,
+                     std::shared_ptr<ClientSession> session);
+
 private:
-    void split(std::string str, std::vector<std::string>& words);
-    void handleWildCard(Node* root, std::vector<std::string>& sub_topics, std::vector<Node*>& vec);
-    void getNode(std::vector<Node*>& vec, Node* root, std::vector<std::string>& sub_topics, int idx = 0);
+    void split(std::string str,
+               std::vector<std::string>& words);
+
+    void handleWildCard(Node* root, 
+                        std::vector<std::string>& sub_topics, 
+                        std::vector<Node*>& vec);
+
+    void getNode(std::vector<Node*>& vec, 
+                 Node* root, 
+                 std::vector<std::string>& sub_topics, 
+                 int idx = 0);
+
     std::unique_ptr<Node> m_root;
 };
 

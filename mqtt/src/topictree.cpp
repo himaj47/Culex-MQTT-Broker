@@ -54,6 +54,8 @@ void TopicTree::handleWildCard(Node* root,
     }
 }
 
+// vector of Node pointer, vec, is passed to retrieve all the nodes with matching topic
+// vector<Node*> is passed, since it also deals with wildcard characters, so it might return multiple Node pointers
 void TopicTree::getNode(std::vector<Node*>& vec,
                         Node* root, 
                         std::vector<std::string>& sub_topics, 
@@ -70,7 +72,6 @@ void TopicTree::getNode(std::vector<Node*>& vec,
                     }
                 }
                 else {
-                    std::cout << "entered\n";
                     handleWildCard(root, link_topics, vec);
                 }
             }
@@ -115,6 +116,20 @@ void TopicTree::subscribe(const std::string& topic,
 
     for (auto node : nodes) {
         node->subscribe(session, qos);
+    }
+}
+
+void TopicTree::unsubscribe(const std::string& topic,
+                            std::shared_ptr<ClientSession> session) {
+
+    std::vector<std::string> words;
+    split(topic, words);
+    
+    std::vector<Node*> nodes;
+    getNode(nodes, m_root.get(), words);
+
+    for (auto node : nodes) {
+        node->unsubscribe(session);
     }
 }
 
