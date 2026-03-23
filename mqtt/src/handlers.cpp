@@ -330,7 +330,7 @@ int pingreqHandler(Packet& pkt,
     buff.push_back(header.pack());
 
     packet_handler->pushDataToSend(buff);
-    
+
     return return_code;
 }
 
@@ -361,7 +361,7 @@ int unpack_connect(Header& header, Packet& packet, const uint8_t** buff, size_t 
     int remaining_len = 0;
 
     if (is_partial(buff, available_bytes, remaining_len)) 
-        return -MQTT_ERR;
+        return MQTT_PARTIAL_PACKET;
 
     int length_of_remaining_len = (*buff - start) + 1;
     // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
@@ -404,7 +404,7 @@ int unpack_publish(Header& header, Packet& packet, const uint8_t** buff, size_t 
     int remaining_len = 0;
 
     if (is_partial(buff, available_bytes, remaining_len)) 
-        return -MQTT_ERR;
+        return MQTT_PARTIAL_PACKET;
 
     int length_of_remaining_len = (*buff - start) + 1;
     // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
@@ -432,7 +432,7 @@ int unpack_ack(Header& header, Packet& packet, const uint8_t** buff, size_t avai
     int remaining_len = 0;
 
     if (is_partial(buff, available_bytes, remaining_len)) 
-        return -MQTT_ERR;
+        return MQTT_PARTIAL_PACKET;
 
     int length_of_remaining_len = (*buff - start) + 1;
     // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
@@ -449,7 +449,7 @@ int unpack_subscribe(Header& header, Packet& packet, const uint8_t** buff, size_
     int remaining_len = 0;
 
     if (is_partial(buff, available_bytes, remaining_len)) 
-        return -MQTT_ERR;
+        return MQTT_PARTIAL_PACKET;
 
     int length_of_remaining_len = (*buff - start) + 1;
     // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
