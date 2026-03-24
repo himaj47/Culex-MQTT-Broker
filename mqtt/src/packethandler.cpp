@@ -17,7 +17,9 @@ void PacketHandler::parseData() {
     Packet pkt;
     {
         std::lock_guard<std::mutex> lock(m_recvBuffMutex);
-        available_bytes = m_recvBuff.size();
+
+        available_bytes = m_recvBuff.availableBytes();
+
         const uint8_t* buff = m_recvBuff.data();
         rc = unpack(pkt, &buff, available_bytes);
     }
@@ -28,7 +30,7 @@ void PacketHandler::parseData() {
         // erase packet from buffer
         {
             std::lock_guard<std::mutex> lock(m_recvBuffMutex);
-            m_recvBuff.erase(m_recvBuff.begin(), m_recvBuff.begin() + pkt.pkt_len);
+            m_recvBuff.erase(pkt.pkt_len);
         }
 
         // call the handler based on packet type
@@ -48,8 +50,8 @@ void PacketHandler::parseData() {
             forceDisconnect();
         }
 
-        else {
-            std::cout << "[PacketHandler] error while build response packet!\n";
+        else if (rc == -MQTT_ERR) {
+            std::cout << "[PacketHandler] error while building response packet!\n";
         }
     }
 
@@ -71,6 +73,7 @@ void PacketHandler::parseData() {
 
 bool PacketHandler::forceDisconnect() {
     m_manageSessions.removeSession(m_fd.fd());
+    return true;
 }
 
 }
