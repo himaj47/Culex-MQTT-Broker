@@ -95,7 +95,7 @@ int connectHandler(Packet& pkt,
         header.type = static_cast<PacketType>(PacketType::CONNACK);
 
         uint8_t rc = 0x00;
-        if (cn_pkt.level != 4) {
+        if (cn_pkt.level != 0x04) {
             rc = 0x01;
 
             cs->connected = false;
@@ -176,6 +176,8 @@ int subscribeHandler(Packet& pkt,
                   ManageSessions& session_manager, 
                   std::shared_ptr<PacketHandler> packet_handler) {
 
+    int return_code = -MQTT_ERR;
+
     if (std::holds_alternative<Subscribe>(pkt.pkt)) {
         Subscribe& sub = std::get<Subscribe>(pkt.pkt);
         std::vector<uint8_t> return_codes;
@@ -193,7 +195,10 @@ int subscribeHandler(Packet& pkt,
 
         build_suback(sub.packet_id, return_codes, buff);
         packet_handler->pushDataToSend(buff);
+        return_code = MQTT_OK;
     }
+
+    return return_code;
 }
 
 int pubackHandler(Packet& pkt, 
@@ -306,7 +311,6 @@ int unsubscribeHandler(Packet& pkt,
         }
 
         // build unsuback packet
-        std::vector<uint8_t> buff;
         build_ack(unsub.packet_id, PacketType::UNSUBACK, buff);
         packet_handler->pushDataToSend(buff);
 
@@ -326,9 +330,7 @@ int pingreqHandler(Packet& pkt,
     Header header{};
     header.type = PacketType::PINGREQ;
 
-    std::vector<uint8_t> buff;
     buff.push_back(header.pack());
-
     packet_handler->pushDataToSend(buff);
 
     return return_code;
@@ -338,19 +340,27 @@ int disconnectHandler(Packet& pkt,
                       std::vector<uint8_t>& buff, 
                       ManageSessions& session_manager, 
                       std::shared_ptr<PacketHandler> packet_handler) {
-
+    return MQTT_OK;
 }
 
 
 bool is_partial(const uint8_t** buff, size_t available_bytes, int& remaining_len) {
     const uint8_t* start = *buff;
 
-    if (available_bytes < 5) 
+    if (available_bytes <= 1) {
+        return true;
+    }
+
+    remaining_len = decode_length(buff, available_bytes); 
+
+    if (remaining_len < 0)
         return true;
 
-    remaining_len = decode_length(buff);
-    if ((remaining_len + 1) > available_bytes)
+    int length_of_remaining_len = (*buff - start);
+
+    if ((1 + length_of_remaining_len + remaining_len) > available_bytes) {
         return true;
+    }
 
     return false;
 }
@@ -363,7 +373,8 @@ int unpack_connect(Header& header, Packet& packet, const uint8_t** buff, size_t 
     if (is_partial(buff, available_bytes, remaining_len)) 
         return MQTT_PARTIAL_PACKET;
 
-    int length_of_remaining_len = (*buff - start) + 1;
+    int length_of_remaining_len = (*buff - start);
+
     // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
     packet.pkt_len = sizeof(uint8_t) + length_of_remaining_len + remaining_len;
 
@@ -371,7 +382,6 @@ int unpack_connect(Header& header, Packet& packet, const uint8_t** buff, size_t 
     unpack_string16(buff, protocol_name);
 
     if (protocol_name != "MQTT") {
-        std::cout << "Invalid protocol name!\n";
         return -MQTT_ERR; 
     }
 
@@ -406,7 +416,7 @@ int unpack_publish(Header& header, Packet& packet, const uint8_t** buff, size_t 
     if (is_partial(buff, available_bytes, remaining_len)) 
         return MQTT_PARTIAL_PACKET;
 
-    int length_of_remaining_len = (*buff - start) + 1;
+    int length_of_remaining_len = (*buff - start);
     // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
     packet.pkt_len = sizeof(uint8_t) + length_of_remaining_len + remaining_len;
 
@@ -434,13 +444,14 @@ int unpack_ack(Header& header, Packet& packet, const uint8_t** buff, size_t avai
     if (is_partial(buff, available_bytes, remaining_len)) 
         return MQTT_PARTIAL_PACKET;
 
-    int length_of_remaining_len = (*buff - start) + 1;
+    int length_of_remaining_len = (*buff - start);
     // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
     packet.pkt_len = sizeof(uint8_t) + length_of_remaining_len + remaining_len;
 
     ack.packet_id = unpack_u16(buff);
-
     packet.pkt = std::move(ack);
+
+    return MQTT_OK;
 }
 
 int unpack_subscribe(Header& header, Packet& packet, const uint8_t** buff, size_t available_bytes) {
@@ -451,7 +462,7 @@ int unpack_subscribe(Header& header, Packet& packet, const uint8_t** buff, size_
     if (is_partial(buff, available_bytes, remaining_len)) 
         return MQTT_PARTIAL_PACKET;
 
-    int length_of_remaining_len = (*buff - start) + 1;
+    int length_of_remaining_len = (*buff - start);
     // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
     packet.pkt_len = sizeof(uint8_t) + length_of_remaining_len + remaining_len;
 
@@ -490,7 +501,7 @@ int unpack_unsubscribe(Header& header,
         return -MQTT_ERR;
     }
 
-    int length_of_remaining_len = (*buff - start) + 1;
+    int length_of_remaining_len = (*buff - start);
     // fixed header (1 byte) + remaining_len (1 - 4 bytes) + rest (remaining_len = variable header + payload)
     packet.pkt_len = sizeof(uint8_t) + length_of_remaining_len + remaining_len;
 
@@ -511,24 +522,15 @@ int unpack_unsubscribe(Header& header,
 int unpack(Packet& pkt, const uint8_t** buff, size_t available_bytes) {
     int rc = 0;
 
-    Header header;
     uint8_t byte = unpack_u8(buff);
-    header = Header::unpack(byte);
+    pkt.header = Header::unpack(byte);
+    const unpackHandler& handler = unpack_handlers[static_cast<uint8_t>(pkt.header.type)];
 
-    PacketType type = static_cast<PacketType>(header.type);
-    if (type == PacketType::DISCONNECT ||
-        type == PacketType::PINGREQ ||
-        type == PacketType::PINGRESP) {
-        pkt.header = header;
-
-    } else {
-        const unpackHandler& handler = unpack_handlers[static_cast<uint8_t>(header.type)];
-        if (handler) 
-            rc = handler(header, pkt, buff, available_bytes);
-        else {
-            std::cout << "invalid type!!\n";
-            rc = -MQTT_ERR;
-        }
+    if (handler) 
+        rc = handler(pkt.header, pkt, buff, available_bytes);
+    else {
+        std::cout << "invalid type!!\n";
+        rc = -MQTT_ERR;
     }
 
     return rc;
