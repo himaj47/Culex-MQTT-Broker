@@ -13,8 +13,8 @@
 #define MQTT_PARTIAL_PACKET   2
 
 // return codes for connect packet
-#define MQTT_CONNECTION_ACCEPTED            0x00
-#define MQTT_UNACCEPTABLE_PROTOCOL_VERSION  0x01
+#define MQTT_CONNECTION_ACCEPTED            0x06
+#define MQTT_UNACCEPTABLE_PROTOCOL_VERSION  0x07
 
 // return codes for publish packet
 #define MQTT_PUBACK 0x05
@@ -196,6 +196,6 @@ struct Packet {
 
 
 int encode_length(int len, std::vector<uint8_t>& buff);
-size_t decode_length(const uint8_t** buff);
+size_t decode_length(const uint8_t** buff, size_t available_bytes);
 
 }
