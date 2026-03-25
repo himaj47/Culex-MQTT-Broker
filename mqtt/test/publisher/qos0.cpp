@@ -31,6 +31,6 @@ int main() {
 
         std::cout << "[QoS0] Published\n";
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(10000)); // 10 Hz
+        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // 10 Hz
     }
 }
