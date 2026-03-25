@@ -128,4 +128,8 @@ void build_suback(uint16_t packet_id,
 void pack_suback(const Suback& suback, 
                  std::vector<uint8_t>& buff);
 
+void resendMessages(Packet& packet, 
+                    uint16_t packet_id,
+                    std::shared_ptr<PacketHandler> packet_handler);
+
 }

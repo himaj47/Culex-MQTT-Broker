@@ -38,6 +38,35 @@ const unpackHandler unpack_handlers[11] = {
 };
 
 
+void resendMessages(const Packet& packet, 
+                    uint16_t packet_id, 
+                    std::shared_ptr<PacketHandler> packet_handler) {
+
+    std::vector<uint8_t> buff;
+    
+    // set dup flag to 1
+    Packet pkt = packet;
+    pkt.header.dup = true;
+
+    PacketType type = packet.header.type;
+
+    switch (type) {
+        case PacketType::PUBLISH:
+            build_publish(pkt, packet_id, buff);
+            packet_handler->pushDataToSend(buff);
+            break;
+
+        case PacketType::PUBREL:
+            build_ack(packet_id, PacketType::PUBREL, buff);
+            packet_handler->pushDataToSend(buff);
+            break;
+        
+        default:
+            break;
+    }
+}
+
+
 int connectHandler(Packet& pkt, 
                    std::vector<uint8_t>& buff, 
                    ManageSessions& session_manager, 
@@ -75,6 +104,26 @@ int connectHandler(Packet& pkt,
 
             else {
                 // resume with old session
+                if (auto old_session = cs->session.lock()) {
+                    // resend inflight packets
+                    {
+                        std::lock_guard<std::mutex> lock(cs->inflight_mutex);
+                        for (auto& pair : cs->inflight) {
+                            resendMessages(pair.second, pair.first, old_session);
+                        }
+                    }
+
+                    // resend inflight ack packets
+                    {
+                        std::lock_guard<std::mutex> lock(cs->inflight_ack_mutex);
+                        for (auto& pair : cs->inflight_ack) {
+                            resendMessages(pair.second, pair.first, old_session);
+                        }
+                    }
+
+                    // TODO: resend stored messages
+                }
+
                 // session present = 1
                 connack_pkt.ack_flags = 0x01;
                 // attach current packet handler to ClientSession
@@ -159,7 +208,11 @@ int publishHandler(Packet& pkt,
         else {
             // store as inflight
             auto cs = session_manager.sessionPresent(packet_handler->getClientId());
-            cs->storeInflight(pkt);
+
+            // check if publish packet already present in inflight
+            auto present_packet = cs->getPacket(pub.packet_id, PacketType::PUBLISH);
+            if (!present_packet.pkt_len)
+                cs->storeInflight(pkt);
 
             // build and send pubrec
             build_ack(pub.packet_id, PacketType::PUBREC, buff);
@@ -242,9 +295,6 @@ int pubrecHandler(Packet& pkt,
         // store pubrel in inflight
         auto pkt_pubrel = build_ack(pubrec.packet_id, PacketType::PUBREL, buff);
         cs->storeInflightAcknowlegement(pkt_pubrel);
-
-        // schedule retransmission for pubrel
-        session_manager.scheduleRetransmission(pubrec.packet_id, PacketType::PUBREL, cs);
 
         // send pubrel packet
         packet_handler->pushDataToSend(buff);
