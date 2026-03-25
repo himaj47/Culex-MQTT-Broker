@@ -139,8 +139,9 @@ int publishHandler(Packet& pkt,
     int return_code = -MQTT_ERR;
 
     if (std::holds_alternative<Publish>(pkt.pkt)) {
+        session_manager.updateActivity(packet_handler->getClientId());
+
         Publish& pub = std::get<Publish>(pkt.pkt);
-        
         Header header{};
 
         if (pkt.header.qos == 0) {
@@ -179,6 +180,8 @@ int subscribeHandler(Packet& pkt,
     int return_code = -MQTT_ERR;
 
     if (std::holds_alternative<Subscribe>(pkt.pkt)) {
+        session_manager.updateActivity(packet_handler->getClientId());
+
         Subscribe& sub = std::get<Subscribe>(pkt.pkt);
         std::vector<uint8_t> return_codes;
 
@@ -209,6 +212,8 @@ int pubackHandler(Packet& pkt,
     int return_code = -MQTT_ERR;
 
     if (std::holds_alternative<Puback>(pkt.pkt)) {
+        session_manager.updateActivity(packet_handler->getClientId());
+        
         Puback& puback = std::get<Puback>(pkt.pkt);
         auto cs = session_manager.sessionPresent(packet_handler->getClientId());
 
@@ -229,6 +234,8 @@ int pubrecHandler(Packet& pkt,
     int return_code = -MQTT_ERR;
 
     if (std::holds_alternative<Pubrec>(pkt.pkt)) {
+        session_manager.updateActivity(packet_handler->getClientId());
+
         Pubrec& pubrec = std::get<Pubrec>(pkt.pkt);
         auto cs = session_manager.sessionPresent(packet_handler->getClientId());
 
@@ -256,6 +263,8 @@ int pubrelHandler(Packet& pkt,
     int return_code = -MQTT_ERR;
 
     if (std::holds_alternative<Pubrel>(pkt.pkt)) {
+        session_manager.updateActivity(packet_handler->getClientId());
+
         Pubrel& pubrel = std::get<Pubrel>(pkt.pkt);
         auto cs = session_manager.sessionPresent(packet_handler->getClientId());
 
@@ -283,6 +292,8 @@ int pubcompHandler(Packet& pkt,
     int return_code = -MQTT_ERR;
 
     if (std::holds_alternative<Pubrec>(pkt.pkt)) {
+        session_manager.updateActivity(packet_handler->getClientId());
+
         Pubrec& pubcomp = std::get<Pubcomp>(pkt.pkt);
 
         // remove pubrel packet from inflight acknowlegement
@@ -303,6 +314,8 @@ int unsubscribeHandler(Packet& pkt,
     int return_code = -MQTT_ERR;
 
     if (std::holds_alternative<Pubrec>(pkt.pkt)) {
+        session_manager.updateActivity(packet_handler->getClientId());
+
         Unsubscribe& unsub = std::get<Unsubscribe>(pkt.pkt);
 
         // unsubscribe from topics 
@@ -326,6 +339,8 @@ int pingreqHandler(Packet& pkt,
                    std::shared_ptr<PacketHandler> packet_handler) {
     
     int return_code = -MQTT_ERR;
+
+    session_manager.updateActivity(packet_handler->getClientId());
 
     Header header{};
     header.type = PacketType::PINGREQ;
