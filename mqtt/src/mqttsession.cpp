@@ -35,7 +35,7 @@ void MqttSession::parseData() {
         }
 
         // call the handler based on packet type
-        const handler& handle = handlers[static_cast<uint8_t>(pkt.header.type)];
+        const packethandler& handle = handlers[static_cast<uint8_t>(pkt.header.type)];
         if (handle) {
             rc = handle(pkt, send_buff, m_manageSessions, std::static_pointer_cast<MqttSession>(shared_from_this()));
         }

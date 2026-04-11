@@ -1,10 +1,10 @@
-#include "handlers.h"
+#include "packethandlers.h"
 #include "managesessions.h"
 #include <chrono>
 
 namespace culex {
 
-const handler handlers[15] = {
+const packethandler handlers[15] = {
     nullptr,  
     connectHandler,
     nullptr,
@@ -395,7 +395,7 @@ int disconnectHandler(Packet& pkt,
 
 
 
-// additional utility functions
+// ** additional utility functions **
 
 void build_publish(const Packet& publisher, uint16_t packet_id, std::vector<uint8_t>& buff) {
     const Publish& pub = std::get<Publish>(publisher.pkt);

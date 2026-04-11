@@ -12,12 +12,12 @@ namespace culex {
 class ManageSessions;
 class MqttSession;
 
-using handler = std::function<size_t(Packet& pkt, 
+using packethandler = std::function<size_t(Packet& pkt, 
                                      std::vector<uint8_t>& buff,
                                      ManageSessions& session_manager, 
                                      std::shared_ptr<MqttSession> packet_handler)>;
 
-extern const handler handlers[15];
+extern const packethandler handlers[15];
 
 int connectHandler(Packet& pkt, 
                    std::vector<uint8_t>& buff, 
@@ -70,7 +70,7 @@ int disconnectHandler(Packet& pkt,
                       std::shared_ptr<MqttSession> packet_handler);
 
 
-// additional utility functions
+// ** additional utility functions **
 
 void build_publish(const Packet& publisher, 
                    uint16_t packet_id, 
