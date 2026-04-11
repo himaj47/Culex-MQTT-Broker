@@ -10,7 +10,7 @@ ManageSessions::~ManageSessions() {
 }
 
 void ManageSessions::addSession(int fd) {
-    std::shared_ptr<PacketHandler> session = std::make_shared<PacketHandler>(fd, *this, *m_executor, m_topicTree);
+    std::shared_ptr<MqttSession> session = std::make_shared<MqttSession>(fd, *this, *m_executor, m_topicTree);
     {
         std::unique_lock<std::shared_mutex> lock(m_sessionsRWMutex);
         m_sessions[fd] = std::move(session);

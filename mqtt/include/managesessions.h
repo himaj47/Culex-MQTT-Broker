@@ -2,7 +2,7 @@
 
 #include "core/sessionmanager.h"
 #include "topictree.h"
-#include "packethandler.h"
+#include "mqttsession.h"
 
 #include <unordered_set>
 

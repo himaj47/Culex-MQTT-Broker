@@ -10,64 +10,64 @@
 namespace culex {
 
 class ManageSessions;
-class PacketHandler;
+class MqttSession;
 
 using handler = std::function<size_t(Packet& pkt, 
                                      std::vector<uint8_t>& buff,
                                      ManageSessions& session_manager, 
-                                     std::shared_ptr<PacketHandler> packet_handler)>;
+                                     std::shared_ptr<MqttSession> packet_handler)>;
 
 extern const handler handlers[15];
 
 int connectHandler(Packet& pkt, 
                    std::vector<uint8_t>& buff, 
                    ManageSessions& session_manager, 
-                   std::shared_ptr<PacketHandler> packet_handler);
+                   std::shared_ptr<MqttSession> packet_handler);
 
 int publishHandler(Packet& pkt, 
                    std::vector<uint8_t>& buff, 
                    ManageSessions& session_manager, 
-                   std::shared_ptr<PacketHandler> packet_handler);
+                   std::shared_ptr<MqttSession> packet_handler);
 
 int pubackHandler(Packet& pkt, 
                   std::vector<uint8_t>& buff, 
                   ManageSessions& session_manager, 
-                  std::shared_ptr<PacketHandler> packet_handler);
+                  std::shared_ptr<MqttSession> packet_handler);
 
 int pubrecHandler(Packet& pkt, 
                   std::vector<uint8_t>& buff, 
                   ManageSessions& session_manager, 
-                  std::shared_ptr<PacketHandler> packet_handler);
+                  std::shared_ptr<MqttSession> packet_handler);
 
 int pubrelHandler(Packet& pkt, 
                   std::vector<uint8_t>& buff, 
                   ManageSessions& session_manager, 
-                  std::shared_ptr<PacketHandler> packet_handler);
+                  std::shared_ptr<MqttSession> packet_handler);
 
 int pubcompHandler(Packet& pkt, 
                    std::vector<uint8_t>& buff, 
                    ManageSessions& session_manager, 
-                   std::shared_ptr<PacketHandler> packet_handler);
+                   std::shared_ptr<MqttSession> packet_handler);
 
 int subscribeHandler(Packet& pkt, 
                   std::vector<uint8_t>& buff, 
                   ManageSessions& session_manager, 
-                  std::shared_ptr<PacketHandler> packet_handler);
+                  std::shared_ptr<MqttSession> packet_handler);
 
 int unsubscribeHandler(Packet& pkt, 
                        std::vector<uint8_t>& buff, 
                        ManageSessions& session_manager, 
-                       std::shared_ptr<PacketHandler> packet_handler);
+                       std::shared_ptr<MqttSession> packet_handler);
 
 int pingreqHandler(Packet& pkt, 
                    std::vector<uint8_t>& buff, 
                    ManageSessions& session_manager, 
-                   std::shared_ptr<PacketHandler> packet_handler);
+                   std::shared_ptr<MqttSession> packet_handler);
 
 int disconnectHandler(Packet& pkt, 
                       std::vector<uint8_t>& buff, 
                       ManageSessions& session_manager, 
-                      std::shared_ptr<PacketHandler> packet_handler);
+                      std::shared_ptr<MqttSession> packet_handler);
 
 
 // additional utility functions
@@ -93,6 +93,6 @@ void pack_suback(const Suback& suback,
 
 void resendMessages(Packet& packet, 
                     uint16_t packet_id,
-                    std::shared_ptr<PacketHandler> packet_handler);
+                    std::shared_ptr<MqttSession> packet_handler);
 
 }

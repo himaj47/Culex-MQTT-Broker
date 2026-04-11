@@ -15,7 +15,7 @@ struct ClientSession {
     bool connected{false};
 
     std::unordered_set<std::string> subscriptions;
-    std::weak_ptr<PacketHandler> session;
+    std::weak_ptr<MqttSession> session;
 
     std::atomic<int64_t> expiry_ms{0};
     std::atomic<int64_t> last_activity{0};
@@ -111,9 +111,9 @@ class TopicTree;
 class ManageSessions;
 class Executor;
 
-class PacketHandler : public Session {
+class MqttSession : public Session {
 public:
-    PacketHandler(int fd, ManageSessions& session_manager, Executor& executor, TopicTree&);
+    MqttSession(int fd, ManageSessions& session_manager, Executor& executor, TopicTree&);
     std::string getClientId();
     void parseData() override;
     bool forceDisconnect();
