@@ -17,12 +17,6 @@ using handler = std::function<size_t(Packet& pkt,
                                      ManageSessions& session_manager, 
                                      std::shared_ptr<PacketHandler> packet_handler)>;
 
-using unpackHandler = std::function<size_t(Header& header, 
-                                           Packet& pkt, 
-                                           const uint8_t** buff, 
-                                           size_t available_bytes)>;
-
-extern const unpackHandler unpack_handlers[11];
 extern const handler handlers[15];
 
 int connectHandler(Packet& pkt, 
@@ -76,38 +70,7 @@ int disconnectHandler(Packet& pkt,
                       std::shared_ptr<PacketHandler> packet_handler);
 
 
-bool is_partial(const uint8_t** buff, 
-                size_t available_bytes, 
-                int& remaining_len);
-
-int unpack_connect(Header& header, 
-                   Packet& packet, 
-                   const uint8_t** buff, 
-                   size_t available_bytes);
-
-int unpack_publish(Header& header, 
-                   Packet& packet, 
-                   const uint8_t** buff, 
-                   size_t available_bytes);
-
-int unpack_ack(Header& header, 
-               Packet& packet, 
-               const uint8_t** buff, 
-               size_t available_bytes);
-
-int unpack_subscribe(Header& header, 
-                     Packet& packet, 
-                     const uint8_t** buff, 
-                     size_t available_bytes);
-
-int unpack_unsubscribe(Header& header, 
-                       Packet& packet, 
-                       const uint8_t** buff, 
-                       size_t available_bytes);
-
-int unpack(Packet& pkt, 
-           const uint8_t** buff, 
-           size_t available_bytes);
+// additional utility functions
 
 void build_publish(const Packet& publisher, 
                    uint16_t packet_id, 
