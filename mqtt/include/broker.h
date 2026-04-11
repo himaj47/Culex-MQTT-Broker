@@ -41,7 +41,7 @@ void Broker::run() {
             if (ev.events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) {
                 std::cout << "Session disconnected or crashed (detected by epoll flags)\n";
                 closeConnection(fd);
-            } else if (fd == server_fd_) {
+            } else if (fd == getServerFd()) {
                 newConnection();
             } else if (ev.events & EPOLLIN) {
                 SessionEvent(ev.data.fd);
