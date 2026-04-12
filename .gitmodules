@@ -1,3 +1,4 @@
 [submodule "core"]
 	path = core
 	url = git@github.com:himaj47/culex-core.git
+	branch = main
